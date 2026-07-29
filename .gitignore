@@ -1,0 +1,6 @@
+# ignore *.har
+*.har
+.claude/
+.vscode/
+bin/
+obj/

@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>SKIPPY</RootNamespace>
+    <AssemblyName>SKIPPY</AssemblyName>
+    <Version>1.0.0</Version>
+    <Company>SKIPPY</Company>
+    <Product>SKIPPY</Product>
+    <AssemblyTitle>SKIPPY</AssemblyTitle>
+    <Description>SKIPPY - 你的SCP写作助手</Description>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <!-- Cross-platform: Windows, macOS, Linux -->
+    <RuntimeIdentifiers>win-x64;osx-x64;osx-arm64;linux-x64;linux-arm64</RuntimeIdentifiers>
+    <!-- Enable XAML compilation -->
+    <AvaloniaNameGeneratorIsEnabled>true</AvaloniaNameGeneratorIsEnabled>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.1.0" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.1.0" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.1.0" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.1.0" />
+    <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="皮肤\*.png" />
+  </ItemGroup>
+
+</Project>

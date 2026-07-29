@@ -1,0 +1,80 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="SKIPPY.MainWindow"
+        SystemDecorations="None"
+        Background="Transparent"
+        Topmost="True"
+        ShowInTaskbar="False"
+        Width="120"
+        Height="120"
+        CanResize="False">
+
+    <!-- Pet image with mirror transform (kcorena skin flips direction) -->
+    <Border x:Name="Ball"
+            Background="Transparent"
+            PointerPressed="Ball_PointerPressed"
+            PointerMoved="Ball_PointerMoved"
+            PointerReleased="Ball_PointerReleased">
+        <Border.RenderTransform>
+            <ScaleTransform ScaleX="1" />
+        </Border.RenderTransform>
+        <Image x:Name="BallImage"
+               Stretch="Uniform"
+               RenderOptions.BitmapInterpolationMode="HighQuality" />
+    </Border>
+
+    <Window.ContextMenu>
+        <ContextMenu x:Name="MenuControl">
+            <!-- Search -->
+            <MenuItem x:Name="SearchMenuItem" Header="搜索">
+                <StackPanel Orientation="Horizontal">
+                    <TextBox x:Name="SearchBox"
+                             Width="120"
+                             Height="22"
+                             VerticalAlignment="Center" />
+                    <Button Content="🔍"
+                            Width="30"
+                            Height="22"
+                            Click="SearchBtn_Click"
+                            Margin="4,0,0,0" />
+                </StackPanel>
+            </MenuItem>
+
+            <Separator />
+
+            <!-- Code snippets -->
+            <MenuItem x:Name="CodeMenu" Header="代码模块" />
+
+            <!-- Portal links -->
+            <MenuItem x:Name="PortalMenu" Header="传送门" />
+
+            <!-- Bookmarks (populated dynamically) -->
+            <MenuItem x:Name="BookmarkMenu" Header="📑 收藏夹" />
+
+            <!-- Deleted sites -->
+            <MenuItem x:Name="DeletedMenu" Header="已删除网站" />
+
+            <Separator />
+
+            <!-- Character count -->
+            <MenuItem x:Name="CharCountMenu" Header="字数统计"
+                      Click="CharCount_Click" />
+
+            <!-- Skin switcher -->
+            <MenuItem x:Name="SkinMenu" Header="皮肤" />
+
+            <Separator />
+
+            <!-- AI Roast -->
+            <MenuItem Header="🤖 AI 吐槽" Click="AiRoast_Click" />
+
+            <Separator />
+
+            <!-- About -->
+            <MenuItem Header="关于" Click="About_Click" />
+
+            <!-- Exit -->
+            <MenuItem Header="退出" Click="Exit_Click" />
+        </ContextMenu>
+    </Window.ContextMenu>
+</Window>

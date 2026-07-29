@@ -32,10 +32,16 @@ public partial class MainWindow : Window
     // enable to flag to forece cancel dragging
     // private bool _forceCancelDrag = false;  // TODO: 记得加回来
 
+    // track whether initial positioning has happened
+    private bool _initialPositioned;
+
     public MainWindow()
     {
         // 透明度在初始化之前设置，否则会闪白底
         TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
+
+        // kill the default centering — we do our own positioning
+        WindowStartupLocation = WindowStartupLocation.Manual;
 
         if (!this.IsInitialized)
             InitializeComponent();
@@ -89,10 +95,42 @@ public partial class MainWindow : Window
 
         _menuBuilder.BuildAll();
         _bubbleService.StartTimer();
-        _cpuMonitorService.Initialize();
 
-        Opened += OnOpened;
+        // delay cpu window init until first Opened — avoids top-left overlap
+        // _cpuMonitorService.Initialize() is called in OnFirstOpened
+
+        Opened += OnFirstOpened;
         PositionChanged += OnPositionChanged;
+    }
+
+    /// <summary>
+    /// First-time opened: position the window, THEN show cpu window.
+    /// This fixes the bug where the cpu label overlaps the pet at (0,0).
+    /// </summary>
+    private void OnFirstOpened(object? sender, EventArgs e)
+    {
+        // one-shot — only run on first open
+        Opened -= OnFirstOpened;
+
+        // position window at bottom-right
+        WindowHelper.PositionAtBottomRight(this);
+        WindowHelper.ClampToScreen(this);
+
+        // now safe to show cpu monitor — main window is positioned
+        _cpuMonitorService.Initialize();
+        _cpuMonitorService.UpdatePosition();
+
+        _bubbleService.UpdatePosition();
+        _skinService.UpdateMirror(Position.X, Width);
+        _initialPositioned = true;
+    }
+
+    private void OnPositionChanged(object? sender, PixelPointEventArgs e)
+    {
+        if (!_initialPositioned) return;  // skip before initial pos is set
+        _bubbleService.UpdatePosition();
+        _cpuMonitorService.UpdatePosition();
+        _skinService.UpdateMirror(Position.X, Width);
     }
 
     /// <summary>
@@ -192,7 +230,7 @@ public partial class MainWindow : Window
             }
         }
 
-        if (data.Contains("text/plain")) 
+        if (data.Contains("text/plain"))
         {
             string? rawText = data.Get("text/plain") as string;
             if (!string.IsNullOrWhiteSpace(rawText))
@@ -228,39 +266,17 @@ public partial class MainWindow : Window
     private static string TruncateUrl(string url, int maxLen = 50)
     {
         try{
-    
             var uri = new Uri(url);
-            string short_ = uri.Host;
-            if (uri.AbsolutePath.Length > 1)
-                short_ += "/...";
-            return short_;
+            string h = uri.Host;
+            if (uri.AbsolutePath.Length > 1) h += "/...";
+            return h;
         }
-        catch
-        {
+        catch{
             return url.Length > maxLen ? url[..maxLen] + "..." : url;
         }
     }
 
-    // events
-    private void OnOpened(object? sender, EventArgs e)
-    {
-        // default right bottom
-        WindowHelper.PositionAtBottomRight(this);
-        WindowHelper.ClampToScreen(this);
-        _cpuMonitorService.UpdatePosition();
-        _bubbleService.UpdatePosition();
-        _skinService.UpdateMirror(Position.X, Width);
-    }
-
-    private void OnPositionChanged(object? sender, PixelPointEventArgs e)
-    {
-        // all update
-        _bubbleService.UpdatePosition();
-        _cpuMonitorService.UpdatePosition();
-        _skinService.UpdateMirror(Position.X, Width);
-    }
-
-    // drag move
+    // ── Drag-to-move ──────────────────────────────────────────
 
     private void Ball_PointerPressed(object? sender, PointerPressedEventArgs e)
     {
@@ -277,95 +293,66 @@ public partial class MainWindow : Window
     {
         if (!_isDragging) return;
 
-        var currentPos = e.GetPosition(this);
-        var delta = currentPos - _dragStartMousePos;
+        var pos = e.GetPosition(this);
+        var d = pos - _dragStartMousePos;
+        var s = Screens.ScreenFromWindow(this)?.Scaling ?? 1.0;
 
-        // REMEMBER DPI!!!!!! FUCK YOU DPI!!!
-        var scaling = Screens.ScreenFromWindow(this)?.Scaling ?? 1.0;
-
-        int newX = _dragStartWindowPos.X + (int)Math.Round(delta.X * scaling);
-        int newY = _dragStartWindowPos.Y + (int)Math.Round(delta.Y * scaling);
-
-        Position = new PixelPoint(newX, newY);
-
+        Position = new PixelPoint(
+            _dragStartWindowPos.X + (int)Math.Round(d.X * s),
+            _dragStartWindowPos.Y + (int)Math.Round(d.Y * s));
         e.Handled = true;
     }
 
     private void Ball_PointerReleased(object? sender, PointerReleasedEventArgs e)
     {
         if (!_isDragging) return;
-
         _isDragging = false;
         WindowHelper.ClampToScreen(this);
-
         _bubbleService.UpdatePosition();
         _cpuMonitorService.UpdatePosition();
-
         e.Handled = true;
     }
 
-    // menu event
+    // ── Menu handlers ─────────────────────────────────────────
 
     private void SearchBtn_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
     {
-        // FIND ALL CONTROLS AGAIN
-        var searchBox = this.FindControl<TextBox>("SearchBox")!;
-        var menuControl = this.FindControl<ContextMenu>("MenuControl")!;
-
-        string query = searchBox.Text?.Trim() ?? "";
-        if (string.IsNullOrEmpty(query))
-        {
-            return;
-        }
-
-        // 用系统默认浏览器打开搜索链接
-        try
-        {
-            string searchUrl = "https://scpper.mer.run/search?q=" + Uri.EscapeDataString(query);
-            // open scpper
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = searchUrl,
-                UseShellExecute = true,
+        var sb = this.FindControl<TextBox>("SearchBox")!;
+        var mc = this.FindControl<ContextMenu>("MenuControl")!;
+        string q = sb.Text?.Trim() ?? "";
+        if (string.IsNullOrEmpty(q)) return;
+        try{
+            Process.Start(new ProcessStartInfo{
+                FileName = "https://scpper.mer.run/search?q=" + Uri.EscapeDataString(q),
+                UseShellExecute = true
             });
-        }
-        catch
-        {
-            // impossble...
-        }
-
-        menuControl.Close();
-        searchBox.Text = "";
+        }catch{}
+        mc.Close();
+        sb.Text = "";
     }
 
-    private void CharCount_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
+    private void CharCount_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e){
         this.FindControl<ContextMenu>("MenuControl")?.Close();
         CharCountDialog.Show();
     }
 
-    private void AiRoast_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
+    private void AiRoast_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e){
         this.FindControl<ContextMenu>("MenuControl")?.Close();
         AiRoastDialog.Show();
     }
 
-    private void About_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
+    private void About_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e){
         this.FindControl<ContextMenu>("MenuControl")?.Close();
         AboutDialog.Show();
     }
 
-    private void Exit_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
-    {
+    private void Exit_Click(object? sender, Avalonia.Interactivity.RoutedEventArgs e){
         this.FindControl<ContextMenu>("MenuControl")?.Close();
-
-        var lifetime = Application.Current?.ApplicationLifetime
-            as Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime;
-        lifetime?.Shutdown();
+        (Application.Current?.ApplicationLifetime as
+            Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime)?.Shutdown();
     }
 
-    // live cycle
+    // ── Lifecycle ─────────────────────────────────────────────
 
     protected override void OnClosed(EventArgs e)
     {

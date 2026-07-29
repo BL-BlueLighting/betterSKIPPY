@@ -56,14 +56,14 @@ public class SkinService
                 Path.Combine(Directory.GetCurrentDirectory(), "皮肤", skinName + ".png"),  // 当前目录
             ];
 
-            bool loaded = false;
+            // bool loaded = false;  // debug only — uncomment to trace
             foreach (string path in candidates)
             {
                 if (!File.Exists(path)) continue;
 
                 // i like it
                 _ballImage.Source = new Bitmap(path);
-                loaded = true;
+                // loaded = true;
                 break;
             }
 

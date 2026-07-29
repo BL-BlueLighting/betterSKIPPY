@@ -4,3 +4,8 @@
 .vscode/
 bin/
 obj/
+publish/
+*.zipkey
+
+# ignore auto-generated script by building script.
+ApiConfig.g.cs

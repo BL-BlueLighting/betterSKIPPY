@@ -152,6 +152,7 @@ public class BubbleService
             Topmost = true,
             ShowInTaskbar = false,
             ShowActivated = false,
+            Focusable = false,     // don't steal keyboard focus from whatever the user is doing
             SizeToContent = SizeToContent.WidthAndHeight,
             MaxWidth = 220.0,
         };
@@ -264,6 +265,8 @@ public class BubbleService
             Background = Brushes.Transparent,
             Topmost = true,
             ShowInTaskbar = false,
+            ShowActivated = false,
+            Focusable = false,     // no focus stealing
             SizeToContent = SizeToContent.WidthAndHeight,
         };
 

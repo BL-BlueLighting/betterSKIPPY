@@ -4,53 +4,38 @@ using Avalonia.Platform;
 
 namespace SKIPPY.Helpers;
 
-/// <summary>
-/// multi platform window manager for Avalonia.
-/// </summary>
 internal static class WindowHelper
 {
-    /// <summary>
-    /// get dpi
-    /// </summary>
-    public static double GetScaling(Window window)
+    public static double GetScaling(Window w)
+        => w.Screens?.ScreenFromWindow(w)?.Scaling ?? 1.0;
+
+    /// <summary>clamp so the PET stays on screen, not the whole window</summary>
+    public static void ClampPetToScreen(Window w, int petX, int petY, int petW, int petH, int winW, int winH)
     {
-        return window.Screens?.ScreenFromWindow(window)?.Scaling ?? 1.0;
+        var s = w.Screens?.ScreenFromWindow(w);
+        if (s == null) return;
+        var b = s.WorkingArea;
+        int nx = Math.Clamp(w.Position.X, b.X - petX, b.X + b.Width - petX - petW);
+        int ny = Math.Clamp(w.Position.Y, b.Y - petY, b.Y + b.Height - petY - petH);
+        w.Position = new PixelPoint(nx, ny);
     }
 
-    /// <summary>
-    /// clamp window on screen
-    /// </summary>
-    public static void ClampToScreen(Window window)
+    /// <summary>put pet at bottom-right of screen with 20px margin</summary>
+    public static void PositionPetAtBottomRight(Window w, int petX, int petY, int petW, int petH, int winW, int winH)
     {
-        var screen = window.Screens?.ScreenFromWindow(window);
-        if (screen == null) return;
-
-        var bounds = screen.WorkingArea;
-        window.Position = new PixelPoint(
-            Math.Max(bounds.X, Math.Min(window.Position.X, bounds.X + bounds.Width - (int)window.Width)),
-            Math.Max(bounds.Y, Math.Min(window.Position.Y, bounds.Y + bounds.Height - (int)window.Height)));
+        var s = w.Screens?.ScreenFromWindow(w);
+        if (s == null) return;
+        var b = s.WorkingArea;
+        // pet screen pos = (w.X + petX, w.Y + petY)
+        // want pet at (b.Right - petW - 20, b.Bottom - petH - 20)
+        w.Position = new PixelPoint(
+            b.X + b.Width - petX - petW - 20,
+            b.Y + b.Height - petY - petH - 20);
     }
 
-    /// <summary>
-    /// positions the window at the bottom-right corner with a 20px margin.
-    /// </summary>
-    public static void PositionAtBottomRight(Window window)
+    public static PixelRect GetWorkingArea(Window w)
     {
-        var screen = window.Screens?.ScreenFromWindow(window);
-        if (screen == null) return;
-
-        var bounds = screen.WorkingArea;
-        window.Position = new PixelPoint(
-            bounds.X + bounds.Width - (int)window.Width - 20,
-            bounds.Y + bounds.Height - (int)window.Height - 20);
-    }
-
-    /// <summary>
-    /// gets the working area of the screen the window is on.
-    /// </summary>
-    public static PixelRect GetWorkingArea(Window window)
-    {
-        var screen = window.Screens?.ScreenFromWindow(window);
-        return screen?.WorkingArea ?? new PixelRect(0, 0, 1920, 1080);
+        var s = w.Screens?.ScreenFromWindow(w);
+        return s?.WorkingArea ?? new PixelRect(0, 0, 1920, 1080);
     }
 }

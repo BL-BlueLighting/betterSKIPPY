@@ -16,7 +16,7 @@ public static class AboutDialog
         var dialog = new Window
         {
             Title = "关于 SKIPPY",
-            Width = 340.0,
+            Width = 600.0,
             SizeToContent = SizeToContent.Height,
             WindowStartupLocation = WindowStartupLocation.CenterScreen,
             Topmost = true,
@@ -39,10 +39,17 @@ public static class AboutDialog
 
         // 开发者
         rootPanel.Children.Add(CreateLinkRow(
-            "软件开发者：",
-            "Roger_F (基本程序) & BL.BlueLighting (扩展)",
-            "https://space.bilibili.com/43559177 & https://space.bilibili.com/1534852388")); // 不是 roger 用短链接？短链接是会失效的！
+            "原作者：",
+            "Roger_F",
+            "https://space.bilibili.com/43559177"
+        ));
 
+        // 新版开发者
+        rootPanel.Children.Add(CreateLinkRow(
+            "betterSKIPPY 作者：",
+            "BL.BlueLighting",
+            "https://space.bilibili.com/1534852388"
+        ));
 
         // 灵感
         rootPanel.Children.Add(CreateLinkRow(

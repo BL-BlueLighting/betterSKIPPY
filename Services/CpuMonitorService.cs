@@ -92,8 +92,9 @@ public class CpuMonitorService
         var pos = _getWindowPosition();
         double winW = _getWindowWidth();
 
+        // place above the pet — cpu window is 24px tall, put it 4px above
         int newX = pos.X + (int)((winW - _cpuWindow.Width) / 2.0);
-        int newY = Math.Max(pos.Y + 2, 5);
+        int newY = Math.Max(pos.Y - 28, 2);
 
         _cpuWindow.Position = new PixelPoint(newX, newY);
     }

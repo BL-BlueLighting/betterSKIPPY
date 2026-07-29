@@ -55,6 +55,8 @@ dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=
 
 同时本项目仅供学习使用，皮肤目录内是原版的皮肤。
 
+我用的是 Linux，因此没有 vs，大部分布局都是手写/AI写的。
+
 ## 功能树
 
 - [x] 将整个程序迁移至 Avalonia UI 框架

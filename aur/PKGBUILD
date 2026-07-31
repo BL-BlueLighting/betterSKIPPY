@@ -1,6 +1,9 @@
 # Maintainer: BlueLighting <BL-BlueLighting@users.noreply.github.com>
 # Contributor: Better SKIPPY project (https://github.com/BL-BlueLighting/betterSKIPPY)
 
+# 注意：构建环境需要 UTF-8 locale（/etc/locale.conf 设为 en_US.UTF-8 等），
+# 否则 bsdtar 打包 皮肤/ 中文目录名会警告，安装后皮肤可能找不到。
+
 # ── VCS 包（跟随 main 分支最新代码）──────────────────────────
 #   安装:  makepkg -si
 #   更新:  paru -Sua / yay -Sua（pkgver 自动跟随 git）
@@ -11,12 +14,14 @@
 #   并填上 sha256sums（makepkg -g 生成）。
 
 pkgname=better-skippy-git
-pkgver=r0.1.0.g58f11c8
+pkgver=0.1.1.r0.gf464685
 pkgrel=1
 pkgdesc="SKIPPY — 你的SCP写作助手桌宠 (Avalonia UI)"
 arch=('x86_64' 'aarch64')
 url="https://github.com/BL-BlueLighting/betterSKIPPY"
 license=('custom:CC-BY-SA-3.0')
+# .NET 单文件 apphost 的 bundle 结构会被 strip 破坏（Arithmetic overflow reading bundle）
+options=('!strip')
 depends=('dotnet-runtime')
 makedepends=('dotnet-sdk' 'git')
 optdepends=(

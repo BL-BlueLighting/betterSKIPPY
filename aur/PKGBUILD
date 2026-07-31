@@ -1,0 +1,70 @@
+# Maintainer: BlueLighting <BL-BlueLighting@users.noreply.github.com>
+# Contributor: Better SKIPPY project (https://github.com/BL-BlueLighting/betterSKIPPY)
+
+# ── VCS 包（跟随 main 分支最新代码）──────────────────────────
+#   安装:  makepkg -si
+#   更新:  paru -Sua / yay -Sua（pkgver 自动跟随 git）
+#
+# ── 想要稳定版（release tag）？────────────────────────────────
+#   将 pkgname 改为 better-skippy，删除 pkgver() 函数，
+#   把 source 改为 https://github.com/BL-BlueLighting/betterSKIPPY/archive/refs/tags/v$pkgver.tar.gz
+#   并填上 sha256sums（makepkg -g 生成）。
+
+pkgname=better-skippy-git
+pkgver=r0.1.0.g58f11c8
+pkgrel=1
+pkgdesc="SKIPPY — 你的SCP写作助手桌宠 (Avalonia UI)"
+arch=('x86_64' 'aarch64')
+url="https://github.com/BL-BlueLighting/betterSKIPPY"
+license=('custom:CC-BY-SA-3.0')
+depends=('dotnet-runtime')
+makedepends=('dotnet-sdk' 'git')
+optdepends=(
+    'tesseract: 屏幕监控 OCR（检测"机密分级"自动红温）'
+    'tesseract-data-chi_sim: 简体中文 OCR 语言包'
+    'maim: 截图工具 (X11)'
+    'grim: 截图工具 (Wayland)'
+    'imagemagick: 截图工具备选 (import)'
+)
+source=("betterSKIPPY::git+https://github.com/BL-BlueLighting/betterSKIPPY.git")
+sha256sums=('SKIP')
+
+pkgver() {
+    cd "$srcdir/betterSKIPPY"
+    git describe --long --tags --always 2>/dev/null | sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g' \
+        || echo "r0.1.0.g$(git rev-parse --short HEAD)"
+}
+
+prepare() {
+    cd "$srcdir/betterSKIPPY"
+    # 禁用对 API 配置文件的构建期生成（代码里已内置 ApiConfig.cs）
+    dotnet restore SKIPPY.csproj
+}
+
+build() {
+    cd "$srcdir/betterSKIPPY"
+    dotnet publish SKIPPY.csproj \
+        -c Release \
+        --self-contained false \
+        -p:PublishSingleFile=true \
+        -p:DebugType=embedded \
+        -o "$srcdir/publish-out"
+}
+
+package() {
+    local bindir="$pkgdir/opt/better-skippy"
+
+    # 整个 publish 目录（可执行文件 + SkiaSharp/HarfBuzz 等 native 库）
+    # 皮肤与程序同级，运行时从 baseDir 直接找到
+    mkdir -p "$bindir"
+    cp -r "$srcdir/publish-out/." "$bindir/"
+    cp -r "$srcdir/betterSKIPPY/皮肤" "$bindir/皮肤"
+
+    # /usr/bin 入口
+    install -dm755 "$pkgdir/usr/bin"
+    ln -s /opt/better-skippy/SKIPPY "$pkgdir/usr/bin/better-skippy"
+
+    # 图标 + desktop 入口
+    install -Dm644 "$srcdir/betterSKIPPY/皮肤/初始.png" "$pkgdir/usr/share/pixmaps/better-skippy.png"
+    install -Dm644 -t "$pkgdir/usr/share/applications" "$srcdir/betterSKIPPY/aur/better-skippy.desktop"
+}

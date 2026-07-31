@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=SKIPPY
+Name[zh_CN]=SKIPPY
+Comment=SCP writing helper desktop pet
+Comment[zh_CN]=你的SCP写作助手桌宠
+Exec=better-skippy
+Icon=better-skippy
+Terminal=false
+Type=Application
+Categories=Utility;TextTools;
+StartupNotify=false

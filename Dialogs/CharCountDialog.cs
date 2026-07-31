@@ -22,7 +22,7 @@ public static class CharCountDialog
             WindowStartupLocation = WindowStartupLocation.CenterScreen,
             Topmost = true,
             CanResize = false,
-            Background = new SolidColorBrush(Color.FromRgb(245, 245, 245)),
+            Background = Brushes.Black,
         };
 
         var rootPanel = new StackPanel { Margin = new Thickness(25.0, 20.0, 25.0, 20.0) };
@@ -32,19 +32,19 @@ public static class CharCountDialog
             Text = "字数统计",
             FontSize = 18.0,
             FontWeight = FontWeight.Bold,
-            Foreground = new SolidColorBrush(Color.FromRgb(40, 40, 40)),
+            // Foreground from theme
             Margin = new Thickness(0.0, 0.0, 0.0, 15.0),
         });
 
         var inputBorder = new Border
         {
-            BorderBrush = new SolidColorBrush(Color.FromRgb(180, 180, 180)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(80, 80, 80)),
             BorderThickness = new Thickness(1.0),
             CornerRadius = new CornerRadius(3.0),
             Margin = new Thickness(0.0, 0.0, 0.0, 12.0),
             Width = 400.0,
             Height = 180.0,
-            Background = Brushes.White,
+            Background = new SolidColorBrush(Color.FromRgb(40, 40, 40)),
             HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
         };
 
@@ -54,7 +54,7 @@ public static class CharCountDialog
             AcceptsTab = true,
             TextWrapping = TextWrapping.Wrap,
             Background = Brushes.Transparent,
-            Foreground = new SolidColorBrush(Color.FromRgb(30, 30, 30)),
+            // Foreground from theme
             Padding = new Thickness(8.0, 6.0, 8.0, 6.0),
             FontSize = 13.0,
             BorderThickness = new Thickness(0.0),
@@ -123,7 +123,7 @@ public static class CharCountDialog
         return new TextBlock
         {
             Text = initialText,
-            Foreground = new SolidColorBrush(Color.FromRgb(50, 50, 50)),
+            // Foreground from theme
             FontSize = 14.0,
             Margin = new Thickness(0.0, 0.0, 0.0, 4.0),
         };

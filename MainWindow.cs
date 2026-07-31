@@ -28,6 +28,8 @@ public partial class MainWindow : Window
     private CpuMonitorService _cpuMonitorService = null!;
     private MenuBuilder _menuBuilder = null!;
     private BookmarkService _bookmarkService = null!;
+    private PresetService _presets = null!;
+    private CountdownService _countdown = null!;
 
     private bool _isDragging;
     private PixelPoint _dragStartWinPos;
@@ -59,9 +61,14 @@ public partial class MainWindow : Window
         var bookmarkMenu = this.FindControl<MenuItem>("BookmarkMenu")!;
         var bubbleOverlay = this.FindControl<Border>("BubbleOverlay")!;
         var bubbleText = this.FindControl<TextBlock>("BubbleText")!;
+        var countdownOverlay = this.FindControl<Border>("CountdownOverlay")!;
+        var countdownText = this.FindControl<TextBlock>("CountdownText")!;
         if (menuControl == null) return;
 
         _bookmarkService = new BookmarkService();
+        _presets = new PresetService();
+        _countdown = new CountdownService(this, countdownOverlay, countdownText);
+
         _skinService = new SkinService(ballImage, ballMirror);
         _skinService.LoadSkin(_skinService.CurrentSkin);
 
@@ -79,7 +86,10 @@ public partial class MainWindow : Window
         _menuBuilder = new MenuBuilder(
             codeMenu, portalMenu, deletedMenu, skinMenu, bookmarkMenu, menuControl,
             onSkinSelected: sf => { _skinService.LoadSkin(sf); _bubbleService.ShowBubble(_bubbleService.GetBubbleText()); },
-            bookmarkService: _bookmarkService);
+            bookmarkService: _bookmarkService,
+            presets: _presets);
+
+        _menuBuilder._openPresetDialog = () => PresetDialog.Show(_presets, () => { });
 
         _menuBuilder.BuildAll();
         _bubbleService.StartTimer();
@@ -96,6 +106,7 @@ public partial class MainWindow : Window
         _cpuMonitorService.UpdatePosition();
         _bubbleService.UpdatePosition();
         _skinService.UpdateMirror(PetScreenPos.X, PetW);
+        _countdown.Start();
         _initialPositioned = true;
     }
 
@@ -105,6 +116,7 @@ public partial class MainWindow : Window
         _bubbleService.UpdatePosition();
         _cpuMonitorService.UpdatePosition();
         _skinService.UpdateMirror(PetScreenPos.X, PetW);
+        _countdown.Start();  // reposition countdown (recomputes from window pos)
     }
 
     // ── drag to favourite ─────────────────────────────────────
@@ -221,6 +233,12 @@ public partial class MainWindow : Window
     private void AiRoast_Click(object? s, Avalonia.Interactivity.RoutedEventArgs e)
     { this.FindControl<ContextMenu>("MenuControl")?.Close(); AiRoastDialog.Show(); }
 
+    private void PresetManage_Click(object? s, Avalonia.Interactivity.RoutedEventArgs e)
+    { this.FindControl<ContextMenu>("MenuControl")?.Close(); PresetDialog.Show(_presets, () => { }); }
+
+    private void Countdown_Click(object? s, Avalonia.Interactivity.RoutedEventArgs e)
+    { this.FindControl<ContextMenu>("MenuControl")?.Close(); CountdownDialog.Show(_countdown); }
+
     private void About_Click(object? s, Avalonia.Interactivity.RoutedEventArgs e)
     { this.FindControl<ContextMenu>("MenuControl")?.Close(); AboutDialog.Show(); }
 
@@ -235,6 +253,7 @@ public partial class MainWindow : Window
     {
         _bubbleService.Stop();
         _cpuMonitorService.Stop();
+        _countdown.Stop();
         base.OnClosed(e);
     }
 }

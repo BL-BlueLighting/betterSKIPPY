@@ -111,6 +111,15 @@ if exist "%SKIN_SRC%" (
     echo %G%[buildit]%N%   skins copied
 )
 
+set "TESS_SRC=%PROJ_DIR%publish\tesseract"
+set "TESS_DST=%OUT_DIR%\tesseract"
+if exist "%TESS_SRC%" (
+    echo %G%[buildit]%N% copying bundled tesseract...
+    if not exist "%TESS_DST%" mkdir "%TESS_DST%"
+    xcopy /E /Y /Q "%TESS_SRC%\*" "%TESS_DST%\" >nul 2>&1
+    echo %G%[buildit]%N%   tesseract bundled
+)
+
 :: ── 5. result ────────────────────────────────────────────────
 echo.
 echo %G%[buildit]%N% build complete! → %OUT_DIR%

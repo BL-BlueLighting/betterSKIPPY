@@ -27,12 +27,13 @@ public class BubbleService
     private bool _bubbleVisible;
 
     // ── canvas layout constants ──────────────────────────────
-    // pet sits at (PX, PY) within a 360×220 window
+    // pet sits at (PX, PY) within a 360×300 window
+    // tall window leaves room above the pet for: countdown → CPU window → pet
     public const int PetCanvasX = 240;
-    public const int PetCanvasY = 100;
+    public const int PetCanvasY = 180;
     public const int PetW = 120;
     public const int WinW = 360;
-    public const int WinH = 220;
+    public const int WinH = 300;
 
     // conversation
     private static readonly string[] NormalBubbles =

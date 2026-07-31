@@ -112,6 +112,16 @@ if [ -d "$SKIN_SRC" ]; then
     say "  $(ls -1 "$SKIN_DST"/*.png 2>/dev/null | wc -l) skin(s) ready"
 fi
 
+# copy bundled tesseract if present (Windows portable install)
+TESS_SRC="$PROJ_DIR/publish/tesseract"
+TESS_DST="$OUT_DIR/tesseract"
+if [ -d "$TESS_SRC" ]; then
+    say "copying bundled tesseract..."
+    mkdir -p "$TESS_DST"
+    cp -r "$TESS_SRC"/* "$TESS_DST"/ 2>/dev/null || true
+    say "  tesseract bundled"
+fi
+
 # ── 5. show result ────────────────────────────────────────────
 echo ""
 say "build complete! → ${OUT_DIR}"

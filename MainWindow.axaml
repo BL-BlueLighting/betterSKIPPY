@@ -6,7 +6,7 @@
         Topmost="True"
         ShowInTaskbar="False"
         Width="360"
-        Height="220"
+        Height="300"
         CanResize="False">
 
     <!-- Fixed-size canvas: pet at bottom-left, bubble floats above/right.
@@ -15,7 +15,7 @@
     <Canvas ClipToBounds="False">
         <!-- Pet sits at bottom-left of the 360x220 window -->
         <Border x:Name="Ball"
-                Canvas.Left="240" Canvas.Top="100"
+                Canvas.Left="240" Canvas.Top="180"
                 Width="120" Height="120"
                 Background="Transparent"
                 PointerPressed="Ball_PointerPressed"
@@ -43,6 +43,21 @@
                        TextWrapping="Wrap"
                        MaxWidth="200" />
         </Border>
+
+        <!-- Countdown label — above the pet -->
+        <Border x:Name="CountdownOverlay"
+                Canvas.Left="0" Canvas.Top="0"
+                IsVisible="False"
+                Background="#CC000000"
+                CornerRadius="6"
+                Padding="8,3"
+                Margin="1">
+            <TextBlock x:Name="CountdownText"
+                       FontSize="11"
+                       Foreground="White"
+                       TextWrapping="Wrap"
+                       MaxWidth="300" />
+        </Border>
     </Canvas>
 
     <Window.ContextMenu>
@@ -63,11 +78,14 @@
             <Separator />
             <MenuItem x:Name="CharCountMenu" Header="字数统计"
                       Click="CharCount_Click" />
+            <MenuItem Header="📋 预设管理" Click="PresetManage_Click" />
+            <MenuItem Header="⏰ 倒计时" Click="Countdown_Click" />
             <MenuItem x:Name="SkinMenu" Header="皮肤" />
             <Separator />
             <MenuItem Header="🤖 AI 吐槽" Click="AiRoast_Click" />
             <Separator />
             <MenuItem Header="关于" Click="About_Click" />
+
             <MenuItem Header="退出" Click="Exit_Click" />
         </ContextMenu>
     </Window.ContextMenu>

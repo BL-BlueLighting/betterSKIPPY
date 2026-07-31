@@ -21,7 +21,7 @@ public static class AboutDialog
             WindowStartupLocation = WindowStartupLocation.CenterScreen,
             Topmost = true,
             CanResize = false,
-            Background = new SolidColorBrush(Color.FromRgb(245, 245, 245)),
+            Background = Brushes.Black,
         };
 
         var rootPanel = new StackPanel { Margin = new Thickness(25.0, 20.0, 25.0, 20.0) };
@@ -32,7 +32,7 @@ public static class AboutDialog
             Text = "SKIPPY - 你的SCP写作助手",
             FontSize = 22.0,
             FontWeight = FontWeight.Bold,
-            Foreground = new SolidColorBrush(Color.FromRgb(30, 30, 30)),
+            // Foreground auto from theme
             HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
             Margin = new Thickness(0.0, 0.0, 0.0, 20.0),
         });
@@ -62,7 +62,7 @@ public static class AboutDialog
         {
             Text = "遵循 CC BY-SA 3.0 协议",
             FontSize = 13.0,
-            Foreground = new SolidColorBrush(Color.FromRgb(120, 120, 120)),
+            Opacity = 0.6,
             HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
             Margin = new Thickness(0.0, 0.0, 0.0, 20.0),
         });
@@ -98,7 +98,7 @@ public static class AboutDialog
         {
             Text = label,
             FontSize = 14.0,
-            Foreground = new SolidColorBrush(Color.FromRgb(80, 80, 80)),
+            // Foreground from theme
         });
 
         var link = new TextBlock

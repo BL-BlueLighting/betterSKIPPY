@@ -2,12 +2,13 @@ using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using SKIPPY.Models;
 using SKIPPY.Services;
 
 namespace SKIPPY.Menu;
 
 /// <summary>
-/// build menu
+/// builds all context menus. code menu now shows presets (built-in + custom).
 /// </summary>
 public class MenuBuilder
 {
@@ -19,29 +20,7 @@ public class MenuBuilder
     private readonly ContextMenu _menu;
     private readonly Action<string> _onSkinSelected;
     private readonly BookmarkService _bookmarkService;
-
-    private static readonly (string Header, string Code)[] CodeSnippets =
-    [
-        ("评分模块",
-            "[[>]]\n[[module Rate]]\n[[/>]]"),
-        ("基本格式",
-            "[[>]]\n[[module Rate]]\n[[/>]]\n\n" +
-            "**项目编号：**SCP-CN-XXXX\n" +
-            "**项目等级：**Safe/Euclid/Keter（表明分级）\n\n" +
-            "**特殊收容措施：** [说明收容措施的段落]\n\n" +
-            "**描述：** [描述SCP的段落]\n\n" +
-            "**附录：** [可选的附加段落]\n\n" +
-            "[[footnote]]\n[[/footnote]]\n\n" +
-            "[[div class=\"footer-wikiwalk-nav\"]]\n[[=]]\n" +
-            "<< [[[SCP-CN-XXXW]]] | SCP-CN-XXXX | [[[SCP-CN-XXXY]]] >>\n" +
-            "[[/=]]\n[[/div]]"),
-        ("引用块",
-            "[[div class=\"blockquote\"]]\n[[/div]]"),
-        ("折叠",
-            "[[collapsible show=\"+ 点我打开\" hide=\"- 点我隐藏\"]]\n[[/collapsible]]"),
-        ("图片框",
-            "[[include component:image-block\n| name=\n| caption=\n]]"),
-    ];
+    private readonly PresetService _presets;
 
     private static readonly (string Name, string Url)[] PortalSites =
     [
@@ -68,7 +47,8 @@ public class MenuBuilder
         MenuItem bookmarkMenu,
         ContextMenu menu,
         Action<string> onSkinSelected,
-        BookmarkService bookmarkService)
+        BookmarkService bookmarkService,
+        PresetService presets)
     {
         _codeMenu = codeMenu;
         _portalMenu = portalMenu;
@@ -78,14 +58,12 @@ public class MenuBuilder
         _menu = menu;
         _onSkinSelected = onSkinSelected;
         _bookmarkService = bookmarkService;
+        _presets = presets;
 
-        // Rebuild bookmarks when they change
         _bookmarkService.BookmarksChanged += BuildBookmarkMenu;
+        _presets.PresetsChanged += BuildCodeMenu;
     }
 
-    /// <summary>
-    /// build all menus
-    /// </summary>
     public void BuildAll()
     {
         BuildCodeMenu();
@@ -95,41 +73,64 @@ public class MenuBuilder
         BuildSkinMenu();
     }
 
+    // ── code menu (from presets) ──────────────────────────────
+
     private void BuildCodeMenu()
     {
         _codeMenu.Items.Clear();
 
-        foreach (var (header, code) in CodeSnippets)
+        foreach (var preset in _presets.AllPresets)
         {
-            var item = new MenuItem { Header = header };
-            item.Click += async (_, _) =>
+            var presetItem = new MenuItem
             {
-                try
-                {
-                    var topLevel = TopLevel.GetTopLevel(_menu);
-                    if (topLevel?.Clipboard != null)
-                        await topLevel.Clipboard.SetTextAsync(code);
-                }
-                catch { /* ignore clipboard errors */ }
-                BubbleService.ShowToast("已复制");
-                _menu.Close();
+                Header = preset.Name + (preset.IsCustom ? " ✏️" : ""),
             };
-            _codeMenu.Items.Add(item);
+
+            foreach (var item in preset.Items)
+            {
+                var mi = new MenuItem { Header = item.Header };
+                mi.Click += async (_, _) =>
+                {
+                    try
+                    {
+                        var topLevel = TopLevel.GetTopLevel(_menu);
+                        if (topLevel?.Clipboard != null)
+                            await topLevel.Clipboard.SetTextAsync(item.Code);
+                    }
+                    catch { /* ignore clipboard errors */ }
+                    BubbleService.ShowToast("已复制");
+                    _menu.Close();
+                };
+                presetItem.Items.Add(mi);
+            }
+
+            // presets with no items → disabled
+            if (presetItem.Items.Count == 0)
+                presetItem.IsEnabled = false;
+
+            _codeMenu.Items.Add(presetItem);
         }
+
+        // always append "manage" entry at bottom
+        _codeMenu.Items.Add(new Separator());
+        var manage = new MenuItem { Header = "📋 管理预设..." };
+        manage.Click += (_, _) =>
+        {
+            _menu.Close();
+            _openPresetDialog?.Invoke();
+        };
+        _codeMenu.Items.Add(manage);
     }
+
+    public Action? _openPresetDialog;  // set by MainWindow
 
     private void BuildPortalMenu()
     {
         _portalMenu.Items.Clear();
-
         foreach (var (name, url) in PortalSites)
         {
             var item = new MenuItem { Header = name };
-            item.Click += (_, _) =>
-            {
-                OpenUrl(url);
-                _menu.Close();
-            };
+            item.Click += (_, _) => { OpenUrl(url); _menu.Close(); };
             _portalMenu.Items.Add(item);
         }
     }
@@ -137,15 +138,10 @@ public class MenuBuilder
     private void BuildDeletedMenu()
     {
         _deletedMenu.Items.Clear();
-
         foreach (var (name, url) in DeletedSites)
         {
             var item = new MenuItem { Header = name };
-            item.Click += (_, _) =>
-            {
-                OpenUrl(url);
-                _menu.Close();
-            };
+            item.Click += (_, _) => { OpenUrl(url); _menu.Close(); };
             _deletedMenu.Items.Add(item);
         }
     }
@@ -153,7 +149,6 @@ public class MenuBuilder
     private void BuildSkinMenu()
     {
         _skinMenu.Items.Clear();
-
         foreach (var skin in SkinService.Skins)
         {
             var item = new MenuItem { Header = skin.Name };
@@ -166,52 +161,37 @@ public class MenuBuilder
         }
     }
 
-    /// <summary>
-    /// build bookmark menu
-    /// </summary>
     private void BuildBookmarkMenu()
     {
         _bookmarkMenu.Items.Clear();
-
         var bookmarks = _bookmarkService.Bookmarks;
-
         if (bookmarks.Count == 0)
         {
-            var emptyItem = new MenuItem
+            _bookmarkMenu.Items.Add(new MenuItem
             {
                 Header = "（暂无收藏 — 拖动网页标签/地址到宠物即可收藏）",
                 IsEnabled = false,
-            };
-            _bookmarkMenu.Items.Add(emptyItem);
+            });
             return;
         }
 
         foreach (var bm in bookmarks)
         {
             var item = new MenuItem { Header = $"🔖 {bm.Title}" };
-
-            // Add tooltip with full URL
             ToolTip.SetTip(item, bm.Url);
-
-            item.Click += (_, _) =>
-            {
-                BookmarkService.Open(bm);
-                _menu.Close();
-            };
-
+            item.Click += (_, _) => { BookmarkService.Open(bm); _menu.Close(); };
             _bookmarkMenu.Items.Add(item);
         }
 
         _bookmarkMenu.Items.Add(new Separator());
-
-        var clearItem = new MenuItem { Header = "清空收藏夹" };
-        clearItem.Click += (_, _) =>
+        var clear = new MenuItem { Header = "清空收藏夹" };
+        clear.Click += (_, _) =>
         {
             foreach (var bm in bookmarks.ToList())
                 _bookmarkService.Remove(bm.Url);
             _menu.Close();
         };
-        _bookmarkMenu.Items.Add(clearItem);
+        _bookmarkMenu.Items.Add(clear);
     }
 
     private static void OpenUrl(string url)
@@ -224,9 +204,6 @@ public class MenuBuilder
                 UseShellExecute = true,
             });
         }
-        catch
-        {
-            // Ignore launch failures
-        }
+        catch { }
     }
 }

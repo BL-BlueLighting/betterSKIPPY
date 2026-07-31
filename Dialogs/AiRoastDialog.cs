@@ -12,6 +12,7 @@ namespace SKIPPY.Dialogs;
 /// </summary>
 public static class AiRoastDialog
 {
+    private static readonly SolidColorBrush Gray = new(Color.FromRgb(140, 140, 140));
     public static void Show()
     {
         var dialog = new Window
@@ -22,7 +23,7 @@ public static class AiRoastDialog
             WindowStartupLocation = WindowStartupLocation.CenterScreen,
             Topmost = true,
             CanResize = true,
-            Background = new SolidColorBrush(Color.FromRgb(245, 245, 245)),
+            Background = Brushes.Black,
         };
 
         var rootPanel = new DockPanel { Margin = new Thickness(20.0) };
@@ -32,7 +33,7 @@ public static class AiRoastDialog
             Text = "AI 吐槽",
             FontSize = 20.0,
             FontWeight = FontWeight.Bold,
-            Foreground = new SolidColorBrush(Color.FromRgb(30, 30, 30)),
+            // Foreground from theme
             Margin = new Thickness(0.0, 0.0, 0.0, 12.0),
         };
         DockPanel.SetDock(titleBlock, Dock.Top);
@@ -42,7 +43,7 @@ public static class AiRoastDialog
         {
             Text = "粘贴 SCP 文章内容，点击发送获取 AI 吐槽：",
             FontSize = 13.0,
-            Foreground = new SolidColorBrush(Color.FromRgb(100, 100, 100)),
+            Opacity = 0.6,
             Margin = new Thickness(0.0, 0.0, 0.0, 10.0),
         };
         DockPanel.SetDock(hintBlock, Dock.Top);
@@ -53,8 +54,7 @@ public static class AiRoastDialog
             AcceptsReturn = true,
             AcceptsTab = true,
             TextWrapping = TextWrapping.Wrap,
-            Background = Brushes.White,
-            Foreground = new SolidColorBrush(Color.FromRgb(30, 30, 30)),
+            Background = new SolidColorBrush(Color.FromRgb(40, 40, 40)),
             Padding = new Thickness(8.0),
             FontSize = 13.0,
             MinHeight = 120.0,
@@ -109,10 +109,10 @@ public static class AiRoastDialog
         // Response area
         var responseBorder = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(240, 240, 240)),
+            Background = new SolidColorBrush(Color.FromRgb(30, 30, 30)),
             CornerRadius = new CornerRadius(4.0),
             Padding = new Thickness(10.0),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(200, 200, 200)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(80, 80, 80)),
             BorderThickness = new Thickness(1.0),
         };
 
@@ -121,7 +121,7 @@ public static class AiRoastDialog
             Text = "等待输入...",
             FontSize = 13.0,
             TextWrapping = TextWrapping.Wrap,
-            Foreground = new SolidColorBrush(Color.FromRgb(60, 60, 60)),
+            // Foreground from theme
         };
 
         var responseScroll = new ScrollViewer
@@ -143,7 +143,7 @@ public static class AiRoastDialog
             if (string.IsNullOrEmpty(content))
             {
                 responseBlock.Text = "请先粘贴文章内容。";
-                responseBlock.Foreground = new SolidColorBrush(Color.FromRgb(200, 50, 50));
+                responseBlock.Foreground = new SolidColorBrush(Color.FromRgb(255, 100, 100));
                 return;
             }
 
@@ -157,12 +157,12 @@ public static class AiRoastDialog
             if (result != null)
             {
                 responseBlock.Text = result;
-                responseBlock.Foreground = new SolidColorBrush(Color.FromRgb(30, 30, 30));
+                // Foreground from theme (white on black)
             }
             else
             {
                 responseBlock.Text = "请求失败，请检查网络或 API 配置。";
-                responseBlock.Foreground = new SolidColorBrush(Color.FromRgb(200, 50, 50));
+                responseBlock.Foreground = new SolidColorBrush(Color.FromRgb(255, 100, 100));
             }
 
             sendButton.IsEnabled = true;

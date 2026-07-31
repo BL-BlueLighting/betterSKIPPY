@@ -65,7 +65,12 @@ jobs:
         shell: bash
         run: |
           cd publish-out
-          zip -r ../SKIPPY-${{ matrix.rid }}.zip . >/dev/null
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            # windows runners don't ship `zip` — use powershell
+            powershell -Command "Compress-Archive -Path * -DestinationPath ../SKIPPY-${{ matrix.rid }}.zip -Force"
+          else
+            zip -r ../SKIPPY-${{ matrix.rid }}.zip . >/dev/null
+          fi
           cd ..
           ls -lh SKIPPY-${{ matrix.rid }}.zip
 

@@ -126,16 +126,30 @@ public class AiService
 
         try
         {
-            using var form = new MultipartFormDataContent();
+            // build multipart form manually — all bytes, no StreamWriter position bugs
             var fileBytes = File.ReadAllBytes(audioPath);
-            var fileContent = new ByteArrayContent(fileBytes);
-            fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("audio/wav");
-            form.Add(fileContent, "file", Path.GetFileName(audioPath));
-            form.Add(new StringContent(stt.Model), "model");
+            var boundary = "----SkpStt" + Guid.NewGuid().ToString("N")[..8];
+            var enc = new UTF8Encoding(false);
+
+            static byte[] B(string s, UTF8Encoding e) => e.GetBytes(s);
+
+            var parts = new List<byte[]>();
+            parts.Add(B($"--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{Path.GetFileName(audioPath)}\"\r\nContent-Type: audio/wav\r\n\r\n", enc));
+            parts.Add(fileBytes);
+            parts.Add(B($"\r\n--{boundary}\r\nContent-Disposition: form-data; name=\"model\"\r\n\r\n{stt.Model}\r\n--{boundary}--\r\n", enc));
+
+            var bodyBytes = new byte[parts.Sum(p => p.Length)];
+            int offset = 0;
+            foreach (var p in parts) { Buffer.BlockCopy(p, 0, bodyBytes, offset, p.Length); offset += p.Length; }
+
+            using var content = new ByteArrayContent(bodyBytes);
+            content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("multipart/form-data");
+            content.Headers.ContentType.Parameters.Add(
+                new System.Net.Http.Headers.NameValueHeaderValue("boundary", boundary));
 
             using var req = new HttpRequestMessage(HttpMethod.Post, $"{stt.BaseUrl}/audio/transcriptions")
             {
-                Content = form,
+                Content = content,
             };
             req.Headers.Add("Authorization", $"Bearer {stt.ApiKey}");
 

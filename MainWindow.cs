@@ -36,7 +36,12 @@ public partial class MainWindow : Window
     private PixelPoint _dragStartWinPos;
     private Point _dragStartMousePos;
     private bool _initialPositioned;
-    private bool _wasDrag;  // true if mouse moved enough to count as drag
+    private bool _wasDrag;
+
+    // push-to-talk recording state
+    private System.Diagnostics.Process? _recordingProcess;
+    private string? _recordingPath;
+    private bool _isRecording;
 
     private PixelPoint PetScreenPos => new(Position.X + PetX, Position.Y + PetY);
 
@@ -272,47 +277,86 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
-    /// <summary>click on pet face → record mic or show text input → send to AI</summary>
+    /// <summary>click on pet face → push-to-talk toggle or text input</summary>
     private async Task HandleAiQuestionClick()
     {
         var menuControl = this.FindControl<ContextMenu>("MenuControl");
-        if (menuControl?.IsOpen == true) return;  // don't trigger during right-click
+        if (menuControl?.IsOpen == true) return;
 
-        bool hasMic = AiService.HasMicrophone();
-        string? userText = null;
-
-        if (hasMic)
+        // already recording → stop and send to STT
+        if (_isRecording)
         {
-            _bubbleService.ShowBubble("正在听...🎤");
-            await Task.Delay(300);  // brief delay so user sees the bubble
+            _isRecording = false;
+            _bubbleService.ShowBubble("识别中...");
+            var path = AiService.StopRecording(_recordingProcess, _recordingPath!);
+            _recordingProcess = null;
+            _recordingPath = null;
 
-            var audioPath = Path.Combine(Path.GetTempPath(), "skippy_question.wav");
-            var recorded = AiService.RecordAudio(audioPath);
-            if (recorded != null && File.Exists(recorded))
+            string? userText = null;
+            if (path != null && File.Exists(path))
             {
-                _bubbleService.ShowBubble("识别中...");
-                userText = await _ai.SpeechToTextAsync(recorded);
-                try { File.Delete(recorded); } catch { }
+                userText = await _ai.SpeechToTextAsync(path);
+                try { File.Delete(path); } catch { }
             }
 
             if (string.IsNullOrWhiteSpace(userText))
             {
                 _bubbleService.ShowBubble("没听清，请打字吧");
-                userText = null;  // fall through to text dialog
+                Dispatcher.UIThread.Post(() => AiQuestionDialog.Show(_ai, this, null));
             }
+            else
+            {
+                var ft = userText;
+                Dispatcher.UIThread.Post(() => AiQuestionDialog.Show(_ai, this, ft));
+            }
+            return;
         }
 
-        // if no mic or STT failed → text input
-        if (string.IsNullOrWhiteSpace(userText))
+        // not recording — check mic and start
+        if (!AiService.HasMicrophone())
         {
+            // no mic → straight to text input
             Dispatcher.UIThread.Post(() => AiQuestionDialog.Show(_ai, this, null));
+            return;
         }
-        else
+
+        // start recording
+        _recordingPath = Path.Combine(Path.GetTempPath(), "skippy_question.wav");
+        _recordingProcess = AiService.StartRecording(_recordingPath);
+        if (_recordingProcess == null)
         {
-            // got voice text → send to AI directly, show response in dialog
-            var finalText = userText;
-            Dispatcher.UIThread.Post(() => AiQuestionDialog.Show(_ai, this, finalText));
+            _bubbleService.ShowBubble("麦克风启动失败，请打字吧");
+            return;
         }
+
+        _isRecording = true;
+        _bubbleService.ShowBubble("🎤 正在听... 说完了再点我一下");
+
+        // auto-stop safety: timeout after 30s
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(30000);
+            if (_isRecording)
+            {
+                Dispatcher.UIThread.Post(async () =>
+                {
+                    if (!_isRecording) return;
+                    _isRecording = false;
+                    var p = AiService.StopRecording(_recordingProcess, _recordingPath!);
+                    _recordingProcess = null; _recordingPath = null;
+                    string? text = null;
+                    if (p != null && File.Exists(p))
+                    {
+                        _bubbleService.ShowBubble("识别中...");
+                        text = await _ai.SpeechToTextAsync(p);
+                        try { File.Delete(p); } catch { }
+                    }
+                    var ft2 = text;
+                    Dispatcher.UIThread.Post(() => AiQuestionDialog.Show(_ai, this,
+                        string.IsNullOrWhiteSpace(ft2) ? null : ft2));
+                });
+            }
+        });
     }
 
     // ── menu ──────────────────────────────────────────────────

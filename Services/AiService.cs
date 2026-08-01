@@ -37,39 +37,67 @@ public class AiService
         return false;
     }
 
-    /// <summary>record audio to a WAV file, return path or null on failure</summary>
-    public static string? RecordAudio(string outputPath)
+    /// <summary>start push-to-talk recording, returns the process (null if no mic).
+    /// call StopRecording() to stop and get the WAV path.</summary>
+    public static System.Diagnostics.Process? StartRecording(string outputPath)
     {
         try
         {
             File.Delete(outputPath);
-            if (OperatingSystem.IsLinux())
+            var psi = GetRecordStartInfo(outputPath);
+            if (psi == null) return null;
+            var p = System.Diagnostics.Process.Start(psi);
+            return p;
+        }
+        catch { return null; }
+    }
+
+    /// <summary>kill the recording process, wait for file, return path or null</summary>
+    public static string? StopRecording(System.Diagnostics.Process? proc, string outputPath)
+    {
+        if (proc == null) return null;
+        try
+        {
+            if (!proc.HasExited)
             {
-                if (Run("arecord", $"-d 5 -f cd -t wav {outputPath}") && File.Exists(outputPath))
-                    return outputPath;
-                if (Run("parec", $"--file-format=wav {outputPath}") && File.Exists(outputPath))
-                    return outputPath;
-            }
-            if (OperatingSystem.IsMacOS())
-            {
-                if (Run("rec", $"-r 16000 -c 1 -b 16 {outputPath} trim 0 5") && File.Exists(outputPath))
-                    return outputPath;
-            }
-            if (OperatingSystem.IsWindows())
-            {
-                // PowerShell audio recorder fallback: record 5s via built-in .NET
-                var ps = $@"
-Add-Type -AssemblyName System.Speech
-$r = New-Object System.Speech.Recognition.SpeechRecognitionEngine
-$r.SetInputToDefaultAudioDevice()
-$r.Recognize()
-";
-                // PSH audio capture is unreliable; return null → user gets text input
-                // Windows users should install arecord via MSYS2 or use text input
+                proc.Kill(entireProcessTree: true);
+                proc.WaitForExit(3000);
             }
         }
         catch { }
+        // wait up to 2s for the file to flush
+        for (int i = 0; i < 20; i++)
+        {
+            if (File.Exists(outputPath) && new FileInfo(outputPath).Length > 100) return outputPath;
+            Thread.Sleep(100);
+        }
+        return File.Exists(outputPath) ? outputPath : null;
+    }
+
+    private static System.Diagnostics.ProcessStartInfo? GetRecordStartInfo(string outputPath)
+    {
+        if (OperatingSystem.IsLinux())
+        {
+            if (HasExe("arecord"))
+                return new System.Diagnostics.ProcessStartInfo("arecord", $"-f cd -t wav {outputPath}")
+                { CreateNoWindow = true, UseShellExecute = false };
+            if (HasExe("parec"))
+                return new System.Diagnostics.ProcessStartInfo("parec", $"--file-format=wav {outputPath}")
+                { CreateNoWindow = true, UseShellExecute = false };
+        }
+        if (OperatingSystem.IsMacOS())
+        {
+            if (HasExe("sox"))
+                return new System.Diagnostics.ProcessStartInfo("sox", $"-d -r 16000 -c 1 -b 16 {outputPath}")
+                { CreateNoWindow = true, UseShellExecute = false };
+        }
         return null;
+    }
+
+    private static bool HasExe(string exe)
+    {
+        try { var p = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("which", exe) { CreateNoWindow = true, UseShellExecute = false, RedirectStandardOutput = true }); p?.WaitForExit(2000); return p?.ExitCode == 0; }
+        catch { return false; }
     }
 
     // ── Speech-to-Text (SiliconFlow TeleSpeechASR) ────────────

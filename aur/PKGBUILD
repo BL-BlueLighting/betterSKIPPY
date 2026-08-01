@@ -14,7 +14,7 @@
 #   并填上 sha256sums（makepkg -g 生成）。
 
 pkgname=better-skippy-git
-pkgver=0.1.1.r0.gf464685
+pkgver=0.1.1.r1.g96f348b
 pkgrel=1
 pkgdesc="SKIPPY — 你的SCP写作助手桌宠 (Avalonia UI)"
 arch=('x86_64' 'aarch64')

@@ -1,9 +1,11 @@
 using System.Diagnostics;
+using System.Text.Json;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Platform;
+using Avalonia.Threading;
 using SKIPPY.Dialogs;
 using SKIPPY.Helpers;
 using SKIPPY.Menu;
@@ -11,12 +13,8 @@ using SKIPPY.Services;
 
 namespace SKIPPY;
 
-/// <summary>
-/// 桌宠主窗口。360×220 透明画布，宠物在 (240,100) 处，气泡出现在周围空白区域。
-/// </summary>
 public partial class MainWindow : Window
 {
-    // pet position within the 360×220 window
     private const int PetX = BubbleService.PetCanvasX;
     private const int PetY = BubbleService.PetCanvasY;
     private const int PetW = BubbleService.PetW;
@@ -30,13 +28,16 @@ public partial class MainWindow : Window
     private BookmarkService _bookmarkService = null!;
     private PresetService _presets = null!;
     private CountdownService _countdown = null!;
+    private AiService _ai = null!;
+    private AiRoastService _aiRoast = null!;
+    private AiConfigData _aiConfig = new();
 
     private bool _isDragging;
     private PixelPoint _dragStartWinPos;
     private Point _dragStartMousePos;
     private bool _initialPositioned;
+    private bool _wasDrag;  // true if mouse moved enough to count as drag
 
-    // helper: pet's screen position (top-left)
     private PixelPoint PetScreenPos => new(Position.X + PetX, Position.Y + PetY);
 
     public MainWindow()
@@ -44,9 +45,49 @@ public partial class MainWindow : Window
         TransparencyLevelHint = [WindowTransparencyLevel.Transparent];
         WindowStartupLocation = WindowStartupLocation.Manual;
         if (!this.IsInitialized) InitializeComponent();
+        LoadAiConfig();
         InitializeServices();
         SetupDragDrop();
     }
+
+    // ── AI config ──────────────────────────────────────────────
+    private void LoadAiConfig()
+    {
+        try
+        {
+            var path = Path.Combine(GetConfigDir(), "ai.json");
+            if (File.Exists(path))
+                _aiConfig = JsonSerializer.Deserialize<AiConfigData>(File.ReadAllText(path)) ?? new();
+        }
+        catch { }
+    }
+
+    private void SaveAiConfig()
+    {
+        try
+        {
+            var dir = GetConfigDir();
+            Directory.CreateDirectory(dir);
+            File.WriteAllText(Path.Combine(dir, "ai.json"),
+                JsonSerializer.Serialize(_aiConfig, new JsonSerializerOptions { WriteIndented = true }));
+        }
+        catch { }
+    }
+
+    private static string GetConfigDir()
+    {
+        if (OperatingSystem.IsWindows())
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SKIPPY");
+        if (OperatingSystem.IsMacOS())
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                "Library", "Application Support", "SKIPPY");
+        var xdg = Environment.GetEnvironmentVariable("XDG_CONFIG_HOME");
+        return Path.Combine(string.IsNullOrEmpty(xdg)
+            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".config")
+            : xdg, "SKIPPY");
+    }
+
+    // ── Initialization ────────────────────────────────────────
 
     private void InitializeServices()
     {
@@ -68,6 +109,9 @@ public partial class MainWindow : Window
         _bookmarkService = new BookmarkService();
         _presets = new PresetService();
         _countdown = new CountdownService(this, countdownOverlay, countdownText);
+
+        _ai = new AiService(() => _aiConfig);
+        _aiRoast = new AiRoastService(() => _aiConfig);
 
         _skinService = new SkinService(ballImage, ballMirror);
         _skinService.LoadSkin(_skinService.CurrentSkin);
@@ -116,7 +160,7 @@ public partial class MainWindow : Window
         _bubbleService.UpdatePosition();
         _cpuMonitorService.UpdatePosition();
         _skinService.UpdateMirror(PetScreenPos.X, PetW);
-        _countdown.Start();  // reposition countdown (recomputes from window pos)
+        _countdown.Start();
     }
 
     // ── drag to favourite ─────────────────────────────────────
@@ -184,7 +228,7 @@ public partial class MainWindow : Window
         catch { return url.Length > max ? url[..max] + "..." : url; }
     }
 
-    // ── drag to move (pet area only) ──────────────────────────
+    // ── drag / click on pet ────────────────────────────────────
 
     private void Ball_PointerPressed(object? s, PointerPressedEventArgs e)
     {
@@ -192,6 +236,7 @@ public partial class MainWindow : Window
         _dragStartWinPos = Position;
         _dragStartMousePos = e.GetPosition(this);
         _isDragging = true;
+        _wasDrag = false;
         e.Handled = true;
     }
 
@@ -199,6 +244,9 @@ public partial class MainWindow : Window
     {
         if (!_isDragging) return;
         var d = e.GetPosition(this) - _dragStartMousePos;
+        if (Math.Abs(d.X) > 3 || Math.Abs(d.Y) > 3) _wasDrag = true;
+        if (!_wasDrag) return;  // ignore tiny moves, treat as click
+
         var sc = Screens.ScreenFromWindow(this)?.Scaling ?? 1.0;
         Position = new PixelPoint(
             _dragStartWinPos.X + (int)Math.Round(d.X * sc),
@@ -206,14 +254,65 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
-    private void Ball_PointerReleased(object? s, PointerReleasedEventArgs e)
+    private async void Ball_PointerReleased(object? s, PointerReleasedEventArgs e)
     {
         if (!_isDragging) return;
         _isDragging = false;
+
+        if (!_wasDrag)
+        {
+            // click (not drag) → AI Question
+            await HandleAiQuestionClick();
+            return;
+        }
+
         WindowHelper.ClampPetToScreen(this, PetX, PetY, PetW, PetW, WinW, WinH);
         _bubbleService.UpdatePosition();
         _cpuMonitorService.UpdatePosition();
         e.Handled = true;
+    }
+
+    /// <summary>click on pet face → record mic or show text input → send to AI</summary>
+    private async Task HandleAiQuestionClick()
+    {
+        var menuControl = this.FindControl<ContextMenu>("MenuControl");
+        if (menuControl?.IsOpen == true) return;  // don't trigger during right-click
+
+        bool hasMic = AiService.HasMicrophone();
+        string? userText = null;
+
+        if (hasMic)
+        {
+            _bubbleService.ShowBubble("正在听...🎤");
+            await Task.Delay(300);  // brief delay so user sees the bubble
+
+            var audioPath = Path.Combine(Path.GetTempPath(), "skippy_question.wav");
+            var recorded = AiService.RecordAudio(audioPath);
+            if (recorded != null && File.Exists(recorded))
+            {
+                _bubbleService.ShowBubble("识别中...");
+                userText = await _ai.SpeechToTextAsync(recorded);
+                try { File.Delete(recorded); } catch { }
+            }
+
+            if (string.IsNullOrWhiteSpace(userText))
+            {
+                _bubbleService.ShowBubble("没听清，请打字吧");
+                userText = null;  // fall through to text dialog
+            }
+        }
+
+        // if no mic or STT failed → text input
+        if (string.IsNullOrWhiteSpace(userText))
+        {
+            Dispatcher.UIThread.Post(() => AiQuestionDialog.Show(_ai, this, null));
+        }
+        else
+        {
+            // got voice text → send to AI directly, show response in dialog
+            var finalText = userText;
+            Dispatcher.UIThread.Post(() => AiQuestionDialog.Show(_ai, this, finalText));
+        }
     }
 
     // ── menu ──────────────────────────────────────────────────
@@ -230,8 +329,11 @@ public partial class MainWindow : Window
     private void CharCount_Click(object? s, Avalonia.Interactivity.RoutedEventArgs e)
     { this.FindControl<ContextMenu>("MenuControl")?.Close(); CharCountDialog.Show(); }
 
+    private void AiQuestion_Click(object? s, Avalonia.Interactivity.RoutedEventArgs e)
+    { this.FindControl<ContextMenu>("MenuControl")?.Close(); AiQuestionDialog.Show(_ai, this, null); }
+
     private void AiRoast_Click(object? s, Avalonia.Interactivity.RoutedEventArgs e)
-    { this.FindControl<ContextMenu>("MenuControl")?.Close(); AiRoastDialog.Show(); }
+    { this.FindControl<ContextMenu>("MenuControl")?.Close(); AiRoastDialog.Show(_aiRoast); }
 
     private void PresetManage_Click(object? s, Avalonia.Interactivity.RoutedEventArgs e)
     { this.FindControl<ContextMenu>("MenuControl")?.Close(); PresetDialog.Show(_presets, () => { }); }
@@ -241,6 +343,12 @@ public partial class MainWindow : Window
 
     private void About_Click(object? s, Avalonia.Interactivity.RoutedEventArgs e)
     { this.FindControl<ContextMenu>("MenuControl")?.Close(); AboutDialog.Show(); }
+
+    private void AiSettings_Click(object? s, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        this.FindControl<ContextMenu>("MenuControl")?.Close();
+        AiSettingsDialog.Show(_aiConfig, () => { SaveAiConfig(); });
+    }
 
     private void Exit_Click(object? s, Avalonia.Interactivity.RoutedEventArgs e)
     {

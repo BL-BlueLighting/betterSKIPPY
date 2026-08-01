@@ -13,7 +13,7 @@ namespace SKIPPY.Dialogs;
 public static class AiRoastDialog
 {
     private static readonly SolidColorBrush Gray = new(Color.FromRgb(140, 140, 140));
-    public static void Show()
+    public static void Show(AiRoastService service)
     {
         var dialog = new Window
         {
@@ -152,7 +152,7 @@ public static class AiRoastDialog
             responseBlock.Text = "⏳ 正在请求 AI 吐槽...";
             responseBlock.Foreground = new SolidColorBrush(Color.FromRgb(100, 100, 100));
 
-            string? result = await Task.Run(() => AiRoastService.RoastAsync(content));
+            string? result = await Task.Run(() => service.RoastAsync(content));
 
             if (result != null)
             {

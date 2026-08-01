@@ -82,7 +82,9 @@
             <MenuItem Header="⏰ 倒计时" Click="Countdown_Click" />
             <MenuItem x:Name="SkinMenu" Header="皮肤" />
             <Separator />
+            <MenuItem Header="🤖 问 SKIPPY" Click="AiQuestion_Click" />
             <MenuItem Header="🤖 AI 吐槽" Click="AiRoast_Click" />
+            <MenuItem Header="🤖 AI 设置" Click="AiSettings_Click" />
             <Separator />
             <MenuItem Header="关于" Click="About_Click" />
 

@@ -8,4 +8,7 @@ publish/
 *.zipkey
 
 # ignore auto-generated script by building script.
-ApiConfig.g.cs
+ApiConfig.g.csaur/src/
+aur/pkg/
+aur/betterSKIPPY/
+aur/*.pkg.tar.zst

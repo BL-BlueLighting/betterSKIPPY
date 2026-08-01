@@ -1,106 +1,57 @@
 using System.Net.Http;
-using System.Text;
-using System.Text.Json;
 
 namespace SKIPPY.Services;
 
 /// <summary>
-/// AI service
-///
-/// api look `roast-api.php` file.
-///
-/// format post:
-///   api_content = {article content}
-///   api_key     = {pre-shared key}
-///
-/// format:
-///   { "comment": "AI-generated roast text" }
+/// AI roast — uses the same SiliconFlow config as AiService.
+/// sends SCP article content to the LLM and returns roast commentary.
 /// </summary>
-public static class AiRoastService
+public class AiRoastService(Func<AiConfigData> getConfig)
 {
-    // default values — overridden by ApiConfig if publish/Api.zipkey was present during build
-    private static string _effectiveUrl  = null!;
-    private static string _effectiveKey  = null!;
-    private static bool   _configChecked = false;
+    private readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(30) };
 
-    private static readonly HttpClient _httpClient = new()
+    private static readonly string RoastPrompt =
+        "你是一个毒舌的 SCP 基金会文章审稿人。用户提交了一段 SCP 文档草稿，" +
+        "请用犀利、幽默的中文吐槽这篇文档。指出格式问题、逻辑漏洞、设定矛盾。" +
+        "回复控制在 200 字以内。吐槽完之后如果看到机密分级相关的内容请特别暴躁。";
+
+    public async Task<string?> RoastAsync(string articleContent)
     {
-        Timeout = TimeSpan.FromSeconds(30),
-    };
+        var cfg = getConfig();
+        if (string.IsNullOrWhiteSpace(cfg.ApiKey))
+            return "⚠️ 请先在 AI 设置中填写 SiliconFlow API Key。\n获取：https://cloud.siliconflow.cn/account/ak";
 
-    /// <summary>
-    /// send text to api.
-    /// </summary>
-    public static async Task<string?> RoastAsync(string articleContent)
-    {
-        EnsureConfig();
-
-        if (string.IsNullOrWhiteSpace(_effectiveUrl) || string.IsNullOrWhiteSpace(_effectiveKey))
-        {
-            return "⚠️ API 未配置。\n请在编译前将 publish/Api.zipkey 放在项目目录下（第一行=端点URL，第二行=API Key）。\n\nAPI 需自行实现，仅 releases 内程序可正常调用。";
-        }
-
-        if (string.IsNullOrWhiteSpace(articleContent))
-            return null;
+        if (string.IsNullOrWhiteSpace(articleContent)) return null;
 
         try
         {
-            var content = new FormUrlEncodedContent(new Dictionary<string, string>
+            var body = System.Text.Json.JsonSerializer.Serialize(new
             {
-                ["api_content"] = articleContent,
-                ["api_key"]     = _effectiveKey,
+                model = cfg.ChatModel,
+                messages = new[]
+                {
+                    new { role = "system", content = RoastPrompt },
+                    new { role = "user", content = articleContent },
+                },
+                temperature = 0.9,
+                max_tokens = 500,
             });
 
-            using var response = await _httpClient.PostAsync(_effectiveUrl, content);
-            response.EnsureSuccessStatusCode();
-
-            string json = await response.Content.ReadAsStringAsync();
-
-            using var doc = JsonDocument.Parse(json);
-            if (doc.RootElement.TryGetProperty("comment", out var commentProp))
-                return commentProp.GetString();
-
-            foreach (string field in new[] { "text", "content", "result", "message" })
+            using var req = new HttpRequestMessage(HttpMethod.Post, $"{cfg.ProviderUrl}/chat/completions")
             {
-                if (doc.RootElement.TryGetProperty(field, out var prop))
-                    return prop.GetString();
-            }
+                Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json"),
+            };
+            req.Headers.Add("Authorization", $"Bearer {cfg.ApiKey}");
 
-            return json;
-        }
-        catch (TaskCanceledException)
-        {
-            return "请求超时，请检查网络连接。";
-        }
-        catch (HttpRequestException ex)
-        {
-            return $"请求失败：{ex.Message}";
-        }
-        catch (Exception)
-        {
-            return null;
-        }
-    }
+            using var resp = await _http.SendAsync(req);
+            if (!resp.IsSuccessStatusCode) return $"API 请求失败 (HTTP {resp.StatusCode})";
 
-    // loads effective config from generated file, falls back to hardcoded defaults
-    private static void EnsureConfig()
-    {
-        if (_configChecked) return;
-        _configChecked = true;
-
-        // try generated config (injected at build time from publish/Api.zipkey)
-        string? genUrl = ApiConfig.BaseUrl;
-        string? genKey = ApiConfig.ApiKey;
-
-        if (!string.IsNullOrWhiteSpace(genUrl) && !string.IsNullOrWhiteSpace(genKey))
-        {
-            _effectiveUrl = genUrl;
-            _effectiveKey = genKey;
-            return;
+            var json = await resp.Content.ReadAsStringAsync();
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var comment = doc.RootElement.GetProperty("choices")[0]
+                .GetProperty("message").GetProperty("content").GetString() ?? "";
+            return comment.Trim();
         }
-
-        // fallback: hardcoded (both empty = "not configured")
-        _effectiveUrl = "";
-        _effectiveKey = "";
+        catch (Exception ex) { return $"请求失败：{ex.Message}"; }
     }
 }

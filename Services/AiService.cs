@@ -27,9 +27,9 @@ public class AiService
         try
         {
             if (OperatingSystem.IsLinux())
-                return Run("which", "arecord") || Run("which", "parec");
+                return HasExe("arecord") || HasExe("parec") || HasExe("pw-record");
             if (OperatingSystem.IsMacOS())
-                return Run("which", "sox") || Run("which", "rec");
+                return HasExe("sox") || HasExe("rec");
             if (OperatingSystem.IsWindows())
                 return true; // assume yes on Windows — PowerShell audio capture always works
         }
@@ -78,11 +78,15 @@ public class AiService
     {
         if (OperatingSystem.IsLinux())
         {
+            // All STT APIs want 16kHz mono. Record in that format directly.
             if (HasExe("arecord"))
-                return new System.Diagnostics.ProcessStartInfo("arecord", $"-f cd -t wav {outputPath}")
+                return new System.Diagnostics.ProcessStartInfo("arecord", $"-f S16_LE -r 16000 -c 1 -t wav {outputPath}")
                 { CreateNoWindow = true, UseShellExecute = false };
             if (HasExe("parec"))
-                return new System.Diagnostics.ProcessStartInfo("parec", $"--file-format=wav {outputPath}")
+                return new System.Diagnostics.ProcessStartInfo("parec", $"--file-format=wav --rate=16000 --channels=1 {outputPath}")
+                { CreateNoWindow = true, UseShellExecute = false };
+            if (HasExe("pw-record"))
+                return new System.Diagnostics.ProcessStartInfo("pw-record", $"--rate 16000 --channels 1 --format s16 --container wav {outputPath}")
                 { CreateNoWindow = true, UseShellExecute = false };
         }
         if (OperatingSystem.IsMacOS())
@@ -96,7 +100,14 @@ public class AiService
 
     private static bool HasExe(string exe)
     {
-        try { var p = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("which", exe) { CreateNoWindow = true, UseShellExecute = false, RedirectStandardOutput = true }); p?.WaitForExit(2000); return p?.ExitCode == 0; }
+        // try running it directly — `command -v` doesn't fork a subprocess
+        try
+        {
+            var p = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe, "--version")
+            { CreateNoWindow = true, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true });
+            p?.WaitForExit(2000);
+            return p?.ExitCode == 0;
+        }
         catch { return false; }
     }
 
@@ -355,20 +366,4 @@ public class AiService
         return Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), path));
     }
 
-    // ── helper ────────────────────────────────────────────────
-
-    private static bool Run(string exe, string args)
-    {
-        try
-        {
-            var p = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe, args)
-            {
-                CreateNoWindow = true, UseShellExecute = false,
-                RedirectStandardOutput = true, RedirectStandardError = true,
-            });
-            p?.WaitForExit(10000);
-            return p?.ExitCode == 0;
-        }
-        catch { return false; }
-    }
 }

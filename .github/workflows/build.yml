@@ -116,7 +116,7 @@ jobs:
           fi
 
           TAG="v0.1.${new_num}"
-          NAME="Beta β - v0.1.${new_num}"
+          NAME="v0.1.${new_num}"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
           echo "version=${new_num}" >> "$GITHUB_OUTPUT"
@@ -163,7 +163,7 @@ jobs:
           gh release create "${{ steps.version.outputs.tag }}" \
             --title "${{ steps.version.outputs.name }}" \
             --notes-file ../notes.md \
-            --prerelease \
+            --latest \
             --target "${{ github.sha }}" \
             SKIPPY-*.zip
           echo "✅ released: ${{ steps.version.outputs.name }} (${{ steps.version.outputs.tag }})"

@@ -298,22 +298,19 @@ public partial class MainWindow : Window
                 userText = await _ai.SpeechToTextAsync(path);
                 try { File.Delete(path); } catch { }
             }
-            else
-            {
-                userText = "ERR:录音文件保存失败";
-            }
 
             if (string.IsNullOrWhiteSpace(userText) || userText.StartsWith("ERR:"))
             {
-                var msg = userText.StartsWith("ERR:") ? userText[4..] : "没听清";
+                var msg = userText.StartsWith("ERR:") ? userText[4..] : "没听清，打字吧";
                 _bubbleService.ShowBubble(msg);
                 Dispatcher.UIThread.Post(() => AiQuestionDialog.Show(_ai, this, null));
+                return;
             }
-            else
-            {
-                var ft = userText;
-                Dispatcher.UIThread.Post(() => AiQuestionDialog.Show(_ai, this, ft));
-            }
+
+            // STT ok → ask AI directly, show reply in bubble
+            _bubbleService.ShowBubble("思考中...");
+            string? reply = await Task.Run(() => _ai.ChatAsync(userText));
+            _bubbleService.ShowBubble(reply ?? "嗯...没想好怎么回");
             return;
         }
 
@@ -356,9 +353,16 @@ public partial class MainWindow : Window
                         text = await _ai.SpeechToTextAsync(p);
                         try { File.Delete(p); } catch { }
                     }
-                    var ft2 = text;
-                    Dispatcher.UIThread.Post(() => AiQuestionDialog.Show(_ai, this,
-                        string.IsNullOrWhiteSpace(ft2) || ft2.StartsWith("ERR:") ? null : ft2));
+                    if (string.IsNullOrWhiteSpace(text) || text.StartsWith("ERR:"))
+                    {
+                        _bubbleService.ShowBubble("超时了，请再点我一次");
+                    }
+                    else
+                    {
+                        _bubbleService.ShowBubble("思考中...");
+                        string? reply = await Task.Run(() => _ai.ChatAsync(text));
+                        _bubbleService.ShowBubble(reply ?? "嗯...");
+                    }
                 });
             }
         });

@@ -27,9 +27,9 @@ public class AiService
         try
         {
             if (OperatingSystem.IsLinux())
-                return HasExe("arecord") || HasExe("parec") || HasExe("pw-record");
+                return HasExe("parec") || HasExe("arecord");
             if (OperatingSystem.IsMacOS())
-                return HasExe("sox") || HasExe("rec");
+                return HasExe("sox");
             if (OperatingSystem.IsWindows())
                 return true; // assume yes on Windows — PowerShell audio capture always works
         }
@@ -52,8 +52,8 @@ public class AiService
         catch { return null; }
     }
 
-    /// <summary>kill the recording process, wait for file, return path or null</summary>
-    public static string? StopRecording(System.Diagnostics.Process? proc, string outputPath)
+    /// <summary>kill recording, convert raw→WAV, return valid WAV path or null</summary>
+    public static string? StopRecording(System.Diagnostics.Process? proc, string rawPath)
     {
         if (proc == null) return null;
         try
@@ -65,28 +65,60 @@ public class AiService
             }
         }
         catch { }
-        // wait up to 2s for the file to flush
+
+        // wait for raw file to appear
         for (int i = 0; i < 20; i++)
         {
-            if (File.Exists(outputPath) && new FileInfo(outputPath).Length > 100) return outputPath;
+            if (File.Exists(rawPath) && new FileInfo(rawPath).Length > 100) break;
             Thread.Sleep(100);
         }
-        return File.Exists(outputPath) ? outputPath : null;
+
+        if (!File.Exists(rawPath)) return null;
+
+        // convert raw s16le → valid WAV with proper header
+        var wavPath = rawPath + ".wav";
+        RawToWav(rawPath, wavPath, 16000, 1, 16);
+        try { File.Delete(rawPath); } catch { }
+        return File.Exists(wavPath) ? wavPath : null;
+    }
+
+    /// <summary>prepend WAV header to raw PCM data</summary>
+    private static void RawToWav(string rawPath, string wavPath, int sampleRate, int channels, int bitsPerSample)
+    {
+        var raw = File.ReadAllBytes(rawPath);
+        int dataSize = raw.Length;
+        int byteRate = sampleRate * channels * bitsPerSample / 8;
+        int blockAlign = channels * bitsPerSample / 8;
+
+        using var wav = File.Create(wavPath);
+        using var bw = new BinaryWriter(wav);
+        bw.Write(new[] { (byte)'R', (byte)'I', (byte)'F', (byte)'F' });
+        bw.Write((uint)(36 + dataSize));          // file size - 8
+        bw.Write(new[] { (byte)'W', (byte)'A', (byte)'V', (byte)'E' });
+        bw.Write(new[] { (byte)'f', (byte)'m', (byte)'t', (byte)' ' });
+        bw.Write(16u);                            // PCM chunk size
+        bw.Write((ushort)1);                      // PCM = 1
+        bw.Write((ushort)channels);
+        bw.Write((uint)sampleRate);
+        bw.Write((uint)byteRate);
+        bw.Write((ushort)blockAlign);
+        bw.Write((ushort)bitsPerSample);
+        bw.Write(new[] { (byte)'d', (byte)'a', (byte)'t', (byte)'a' });
+        bw.Write((uint)dataSize);
+        bw.Write(raw);
     }
 
     private static System.Diagnostics.ProcessStartInfo? GetRecordStartInfo(string outputPath)
     {
         if (OperatingSystem.IsLinux())
         {
-            // All STT APIs want 16kHz mono. Record in that format directly.
-            if (HasExe("arecord"))
-                return new System.Diagnostics.ProcessStartInfo("arecord", $"-f S16_LE -r 16000 -c 1 -t wav {outputPath}")
-                { CreateNoWindow = true, UseShellExecute = false };
+            // Record raw s16le — WAV headers get corrupted when process is killed.
+            // We'll add the header ourselves in FixupWavHeader after recording stops.
             if (HasExe("parec"))
-                return new System.Diagnostics.ProcessStartInfo("parec", $"--file-format=wav --rate=16000 --channels=1 {outputPath}")
+                return new System.Diagnostics.ProcessStartInfo("parec", $"--format=s16le --rate=16000 --channels=1 {outputPath}")
                 { CreateNoWindow = true, UseShellExecute = false };
-            if (HasExe("pw-record"))
-                return new System.Diagnostics.ProcessStartInfo("pw-record", $"--rate 16000 --channels 1 --format s16 --container wav {outputPath}")
+            if (HasExe("arecord"))
+                return new System.Diagnostics.ProcessStartInfo("arecord", $"-f S16_LE -r 16000 -c 1 -t raw {outputPath}")
                 { CreateNoWindow = true, UseShellExecute = false };
         }
         if (OperatingSystem.IsMacOS())

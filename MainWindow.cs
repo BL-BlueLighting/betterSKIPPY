@@ -326,7 +326,7 @@ public partial class MainWindow : Window
         }
 
         // start recording
-        _recordingPath = Path.Combine(Path.GetTempPath(), "skippy_question.wav");
+        _recordingPath = Path.Combine(Path.GetTempPath(), "skippy_question.raw");
         _recordingProcess = AiService.StartRecording(_recordingPath);
         if (_recordingProcess == null)
         {

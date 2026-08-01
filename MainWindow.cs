@@ -292,16 +292,21 @@ public partial class MainWindow : Window
             _recordingProcess = null;
             _recordingPath = null;
 
-            string? userText = null;
+            string userText = "";
             if (path != null && File.Exists(path))
             {
                 userText = await _ai.SpeechToTextAsync(path);
                 try { File.Delete(path); } catch { }
             }
-
-            if (string.IsNullOrWhiteSpace(userText))
+            else
             {
-                _bubbleService.ShowBubble("没听清，请打字吧");
+                userText = "ERR:录音文件保存失败";
+            }
+
+            if (string.IsNullOrWhiteSpace(userText) || userText.StartsWith("ERR:"))
+            {
+                var msg = userText.StartsWith("ERR:") ? userText[4..] : "没听清";
+                _bubbleService.ShowBubble(msg);
                 Dispatcher.UIThread.Post(() => AiQuestionDialog.Show(_ai, this, null));
             }
             else
@@ -344,7 +349,7 @@ public partial class MainWindow : Window
                     _isRecording = false;
                     var p = AiService.StopRecording(_recordingProcess, _recordingPath!);
                     _recordingProcess = null; _recordingPath = null;
-                    string? text = null;
+                    string text = "";
                     if (p != null && File.Exists(p))
                     {
                         _bubbleService.ShowBubble("识别中...");
@@ -353,7 +358,7 @@ public partial class MainWindow : Window
                     }
                     var ft2 = text;
                     Dispatcher.UIThread.Post(() => AiQuestionDialog.Show(_ai, this,
-                        string.IsNullOrWhiteSpace(ft2) ? null : ft2));
+                        string.IsNullOrWhiteSpace(ft2) || ft2.StartsWith("ERR:") ? null : ft2));
                 });
             }
         });

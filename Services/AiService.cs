@@ -113,16 +113,24 @@ public class AiService
 
     // ── Speech-to-Text (SiliconFlow TeleSpeechASR) ────────────
 
-    public async Task<string?> SpeechToTextAsync(string audioPath)
+    /// <summary>returns transcribed text, or error string starting with "ERR:" on failure</summary>
+    public async Task<string> SpeechToTextAsync(string audioPath)
     {
         var cfg = _getConfig();
         var stt = cfg.Stt;
-        if (string.IsNullOrWhiteSpace(stt.ApiKey)) return null;
+        if (string.IsNullOrWhiteSpace(stt.ApiKey)) return "ERR:未配置 STT API Key";
+
+        if (!File.Exists(audioPath)) return "ERR:录音文件不存在";
+        var fi = new FileInfo(audioPath);
+        if (fi.Length < 100) return $"ERR:录音文件过小 ({fi.Length} bytes)";
 
         try
         {
             using var form = new MultipartFormDataContent();
-            form.Add(new StreamContent(File.OpenRead(audioPath)), "file", Path.GetFileName(audioPath));
+            var fileBytes = File.ReadAllBytes(audioPath);
+            var fileContent = new ByteArrayContent(fileBytes);
+            fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("audio/wav");
+            form.Add(fileContent, "file", Path.GetFileName(audioPath));
             form.Add(new StringContent(stt.Model), "model");
 
             using var req = new HttpRequestMessage(HttpMethod.Post, $"{stt.BaseUrl}/audio/transcriptions")
@@ -132,13 +140,19 @@ public class AiService
             req.Headers.Add("Authorization", $"Bearer {stt.ApiKey}");
 
             using var resp = await _http.SendAsync(req);
-            if (!resp.IsSuccessStatusCode) return null;
+            var respBody = await resp.Content.ReadAsStringAsync();
 
-            var json = await resp.Content.ReadAsStringAsync();
-            using var doc = JsonDocument.Parse(json);
-            return doc.RootElement.GetProperty("text").GetString()?.Trim();
+            if (!resp.IsSuccessStatusCode)
+            {
+                var shortBody = respBody.Length > 200 ? respBody[..200] + "..." : respBody;
+                return $"ERR:API {resp.StatusCode}: {shortBody}";
+            }
+
+            using var doc = JsonDocument.Parse(respBody);
+            var text = doc.RootElement.GetProperty("text").GetString()?.Trim();
+            return string.IsNullOrWhiteSpace(text) ? "ERR:API 返回空文本" : text;
         }
-        catch { return null; }
+        catch (Exception ex) { return $"ERR:{ex.Message}"; }
     }
 
     // ── Chat with tool calling ────────────────────────────────

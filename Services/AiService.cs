@@ -77,19 +77,20 @@ $r.Recognize()
     public async Task<string?> SpeechToTextAsync(string audioPath)
     {
         var cfg = _getConfig();
-        if (string.IsNullOrWhiteSpace(cfg.ApiKey)) return null;
+        var stt = cfg.Stt;
+        if (string.IsNullOrWhiteSpace(stt.ApiKey)) return null;
 
         try
         {
             using var form = new MultipartFormDataContent();
             form.Add(new StreamContent(File.OpenRead(audioPath)), "file", Path.GetFileName(audioPath));
-            form.Add(new StringContent(cfg.SttModel), "model");
+            form.Add(new StringContent(stt.Model), "model");
 
-            using var req = new HttpRequestMessage(HttpMethod.Post, $"{cfg.ProviderUrl}/audio/transcriptions")
+            using var req = new HttpRequestMessage(HttpMethod.Post, $"{stt.BaseUrl}/audio/transcriptions")
             {
                 Content = form,
             };
-            req.Headers.Add("Authorization", $"Bearer {cfg.ApiKey}");
+            req.Headers.Add("Authorization", $"Bearer {stt.ApiKey}");
 
             using var resp = await _http.SendAsync(req);
             if (!resp.IsSuccessStatusCode) return null;
@@ -106,7 +107,8 @@ $r.Recognize()
     public async Task<string?> ChatAsync(string userMessage, Action<string>? onToolResult = null)
     {
         var cfg = _getConfig();
-        if (string.IsNullOrWhiteSpace(cfg.ApiKey)) return "请先在设置中填写 SiliconFlow API Key。\n\n获取 Key：https://cloud.siliconflow.cn/account/ak";
+        var chat = cfg.Chat;
+        if (string.IsNullOrWhiteSpace(chat.ApiKey)) return "请先在设置中填写对话 API Key。";
 
         var messages = new List<JsonObject>
         {
@@ -120,18 +122,18 @@ $r.Recognize()
         {
             var body = new JsonObject
             {
-                ["model"] = cfg.ChatModel,
+                ["model"] = chat.Model,
                 ["messages"] = JsonSerializer.SerializeToNode(messages),
                 ["temperature"] = 0.7,
                 ["max_tokens"] = 800,
             };
             if (tools.Count > 0) body["tools"] = JsonSerializer.SerializeToNode(tools);
 
-            using var req = new HttpRequestMessage(HttpMethod.Post, $"{cfg.ProviderUrl}/chat/completions")
+            using var req = new HttpRequestMessage(HttpMethod.Post, $"{chat.BaseUrl}/chat/completions")
             {
                 Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json"),
             };
-            req.Headers.Add("Authorization", $"Bearer {cfg.ApiKey}");
+            req.Headers.Add("Authorization", $"Bearer {chat.ApiKey}");
 
             using var resp = await _http.SendAsync(req);
             if (!resp.IsSuccessStatusCode)

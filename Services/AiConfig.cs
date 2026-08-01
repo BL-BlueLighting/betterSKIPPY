@@ -1,15 +1,33 @@
 namespace SKIPPY.Services;
 
+/// <summary>per-provider config</summary>
+public class AiProviderConfig
+{
+    public string BaseUrl { get; set; } = "";
+    public string ApiKey { get; set; } = "";
+    public string Model { get; set; } = "";
+}
+
 /// <summary>
 /// AI config loaded from ~/.config/SKIPPY/ai.json
-/// Set via settings dialog or manually edit the json file.
+/// Chat and STT are fully independent — different providers/keys/models.
 /// </summary>
 public class AiConfigData
 {
-    public string ProviderUrl { get; set; } = "https://api.siliconflow.cn/v1";
-    public string ApiKey { get; set; } = "";
-    public string ChatModel { get; set; } = "deepseek-ai/DeepSeek-V3";
-    public string SttModel { get; set; } = "TeleAI/TeleSpeechASR";
+    // chat provider
+    public AiProviderConfig Chat { get; set; } = new()
+    {
+        BaseUrl = "https://api.siliconflow.cn/v1",
+        Model = "deepseek-ai/DeepSeek-V3",
+    };
+
+    // speech-to-text provider
+    public AiProviderConfig Stt { get; set; } = new()
+    {
+        BaseUrl = "https://api.siliconflow.cn/v1",
+        Model = "TeleAI/TeleSpeechASR",
+    };
+
     public string SystemPrompt { get; set; } = SKIPPY_DEFAULT_PROMPT;
     public bool AllowFileDelete { get; set; } = false;
 

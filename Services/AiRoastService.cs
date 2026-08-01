@@ -18,8 +18,9 @@ public class AiRoastService(Func<AiConfigData> getConfig)
     public async Task<string?> RoastAsync(string articleContent)
     {
         var cfg = getConfig();
-        if (string.IsNullOrWhiteSpace(cfg.ApiKey))
-            return "⚠️ 请先在 AI 设置中填写 SiliconFlow API Key。\n获取：https://cloud.siliconflow.cn/account/ak";
+        var chat = cfg.Chat;
+        if (string.IsNullOrWhiteSpace(chat.ApiKey))
+            return "⚠️ 请先在 AI 设置中填写对话 API Key。";
 
         if (string.IsNullOrWhiteSpace(articleContent)) return null;
 
@@ -27,7 +28,7 @@ public class AiRoastService(Func<AiConfigData> getConfig)
         {
             var body = System.Text.Json.JsonSerializer.Serialize(new
             {
-                model = cfg.ChatModel,
+                model = chat.Model,
                 messages = new[]
                 {
                     new { role = "system", content = RoastPrompt },
@@ -37,11 +38,11 @@ public class AiRoastService(Func<AiConfigData> getConfig)
                 max_tokens = 500,
             });
 
-            using var req = new HttpRequestMessage(HttpMethod.Post, $"{cfg.ProviderUrl}/chat/completions")
+            using var req = new HttpRequestMessage(HttpMethod.Post, $"{chat.BaseUrl}/chat/completions")
             {
                 Content = new StringContent(body, System.Text.Encoding.UTF8, "application/json"),
             };
-            req.Headers.Add("Authorization", $"Bearer {cfg.ApiKey}");
+            req.Headers.Add("Authorization", $"Bearer {chat.ApiKey}");
 
             using var resp = await _http.SendAsync(req);
             if (!resp.IsSuccessStatusCode) return $"API 请求失败 (HTTP {resp.StatusCode})";
